@@ -1,0 +1,478 @@
+# CMPUT 455 Assignment 2 starter code
+# This is a sample solution for assignment 1.
+# Implement the new commands to complete the assignment
+# Full assignment specification and game rules on Canvas
+
+import ast
+import random
+import copy
+from sys import stderr
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# Assignment restrictions (see assignment page)
+# ---------------------------------------------------------------------------
+MIN_HEAPS = 1
+MAX_HEAPS = 20
+MIN_TOKENS = 1
+MAX_TOKENS = 20
+MIN_VALUE = 1
+MAX_VALUE = 20
+KOMI_LIMIT = 100  # -100 < komi < 100, and komi must be an integer + 0.5
+
+# The time limit, in seconds, for a single solve or genmove command
+MIN_TIMELIMIT = 1
+MAX_TIMELIMIT = 100
+DEFAULT_TIMELIMIT = 1
+
+BLACK = 'b'
+WHITE = 'w'
+COLORS = (BLACK, WHITE)
+
+Token = Tuple[str, int]
+Heap = List[Token]
+Heaps = List[Heap]
+
+
+def not_yet() -> bool:
+    raise NotImplementedError("Command not implemented.")
+    return False
+
+
+def print_error(error: str) -> None:
+    print(error, file=stderr)
+
+
+def opponent(color: str) -> str:
+    return WHITE if color == BLACK else BLACK
+
+
+# ---------------------------------------------------------------------------
+# Input validation
+# ---------------------------------------------------------------------------
+def is_int(obj: Any) -> bool:
+    # bool is a subclass of int; True/False are not valid values
+    return isinstance(obj, int) and not isinstance(obj, bool)
+
+
+def is_token(obj: Any) -> bool:
+    return (isinstance(obj, tuple)
+            and len(obj) == 2
+            and obj[0] in COLORS
+            and is_int(obj[1])
+            and MIN_VALUE <= obj[1] <= MAX_VALUE)
+
+
+def is_heap(obj: Any) -> bool:
+    return (isinstance(obj, list)
+            and MIN_TOKENS <= len(obj) <= MAX_TOKENS
+            and all(is_token(token) for token in obj))
+
+
+def is_heaps(obj: Any) -> bool:
+    return (isinstance(obj, list)
+            and MIN_HEAPS <= len(obj) <= MAX_HEAPS
+            and all(is_heap(heap) for heap in obj))
+
+
+def parse_komi(text: str) -> Optional[float]:
+    try:
+        komi = float(text)
+    except ValueError:
+        return None
+    if not (-KOMI_LIMIT < komi < KOMI_LIMIT):
+        return None
+    if (komi - 0.5) != int(komi - 0.5):
+        return None
+    return komi
+
+
+def parse_heaps(text: str) -> Optional[Heaps]:
+    try:
+        parsed = ast.literal_eval(text)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return None
+    if not is_heaps(parsed):
+        return None
+    return parsed
+
+
+def parse_heap_number(args: str) -> Optional[int]:
+    parts = args.split()
+    if len(parts) != 1:
+        return None
+    try:
+        return int(parts[0])
+    except ValueError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Game
+# ---------------------------------------------------------------------------
+class HeapGo:
+    def __init__(self, komi: float, heaps: Heaps) -> None:
+        self.komi = komi
+        self.heaps = heaps
+        self.toplay = BLACK
+        self.score = {BLACK: 0, WHITE: komi}
+
+        self.history = [] # A stack to store the history of game states
+
+    def __str__(self) -> str:
+        return "k {} {}".format(self.komi, self.heaps)
+
+    def is_legal(self, heap_number: int) -> bool:
+        return 0 <= heap_number < len(self.heaps) and len(self.heaps[heap_number]) > 0
+
+    def legal_moves(self) -> List[int]:
+        return [i for i in range(len(self.heaps)) if self.is_legal(i)]
+
+    def game_over(self) -> bool:
+        return len(self.legal_moves()) == 0
+
+    def play(self, heap_number: int) -> bool:
+        # Check if move is legal
+        if not self.is_legal(heap_number):
+            return False
+
+        # print(f"history: {self.history}")
+
+        # Save the current board state
+        current_board = copy.deepcopy(self.heaps)
+        current_score = copy.deepcopy(self.score)
+        current_player = copy.deepcopy(self.toplay)
+        stored_state = (current_board, current_score, current_player)
+        self.history.append(stored_state)
+
+        # print(f"history: {self.history}")
+
+        # Play the move
+        heap = self.heaps[heap_number]
+        gained = 0
+        # Rule 1: take all own-color tokens from the top
+        while heap and heap[-1][0] == self.toplay:
+            gained += heap.pop()[1]
+        # Rule 2: then one opponent token, if any remain
+        if heap:
+            gained += heap.pop()[1]
+        self.score[self.toplay] += gained
+        self.toplay = opponent(self.toplay)
+
+        return True
+
+    def winner(self) -> Optional[str]:
+        if not self.game_over():
+            return None
+        if self.score[BLACK] > self.score[WHITE]:
+            return BLACK
+        if self.score[WHITE] > self.score[BLACK]:
+            return WHITE
+        return None  # draw; impossible with komi = integer + 0.5
+
+    # Need to add undo for the solver algorithm
+    def undo(self) -> bool:
+        # print(f"board before undo: {self.heaps}")
+        # print(f"history: {self.history}")
+        # Revert the board to the previous state
+        # Make sure the previous state is saved
+        if len(self.history) == 0:
+            print_error("CANNOT UNDO")
+            return False
+
+        # Load the most recent version of the state from the history stack
+        restored_state = self.history.pop(-1)
+
+        self.heaps = restored_state[0]
+        self.score = restored_state[1]
+        self.toplay = restored_state[2]
+
+        # print(f"board after undo: {self.heaps}")
+        # print(f"history: {self.history}")
+
+        return True
+
+
+CommandMap = Dict[str, Callable[[str], bool]]
+
+
+class CommandInterface:
+    def __init__(self) -> None:
+        self.game: Optional[HeapGo] = None
+        self.timelimit = DEFAULT_TIMELIMIT
+        # you can add your own initialisation here
+        self.commands: CommandMap = {
+            "help": self.cmd_help,
+            "heapgo": self.cmd_heapgo,
+            "show": self.cmd_show,
+            "toplay": self.cmd_toplay,
+            "play": self.cmd_play,
+            "legal": self.cmd_legal,
+            "genmove": self.cmd_genmove,
+            "score": self.cmd_score,
+            "winner": self.cmd_winner,
+            "solve": self.cmd_solve,
+            "timelimit": self.cmd_timelimit,
+            "undo": self.cmd_undo # For testing
+            }
+
+#============================================================================
+# Command implementations
+#============================================================================
+    def cmd_heapgo(self, args: str) -> bool:
+        parts = args.split(maxsplit=1)
+        if len(parts) != 2:
+            print_error("usage: heapgo komi game")
+            return False
+        komi = parse_komi(parts[0])
+        if komi is None:
+            print_error("invalid komi: {}".format(parts[0]))
+            return False
+        heaps = parse_heaps(parts[1])
+        if heaps is None:
+            print_error("invalid game: {}".format(parts[1]))
+            return False
+        self.game = HeapGo(komi, heaps)
+        return True
+
+    def cmd_show(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        print(self.game)
+        return True
+
+    def cmd_toplay(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        if args not in COLORS:
+            print_error("invalid color: {}".format(args))
+            return False
+        self.game.toplay = args
+        return True
+
+    # Plays a move
+    def cmd_play(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        heap_number = parse_heap_number(args)
+        if heap_number is None:
+            print_error("invalid heap number: {}".format(args))
+            return False
+        if not self.game.play(heap_number):
+            print_error("illegal move: {}".format(heap_number))
+            return False
+        return True
+
+    def cmd_legal(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        heap_number = parse_heap_number(args)
+        if heap_number is None:
+            print_error("invalid heap number: {}".format(args))
+            return False
+        print("yes" if self.game.is_legal(heap_number) else "no")
+        return True
+
+    def cmd_genmove(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        moves = self.game.legal_moves()
+        if not moves:
+            print_error("no legal moves")
+            return False
+        # you need to replace this random move by a move from your solver
+        move = random.choice(moves)
+        self.game.play(move)
+        print(move)
+        return True
+
+    def cmd_score(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        print("b {} w {}".format(self.game.score[BLACK], self.game.score[WHITE]))
+        return True
+
+    def cmd_winner(self, args: str) -> bool:
+        if self.game is None:
+            print_error("no game started")
+            return False
+        winner = self.game.winner()
+        if winner is None:
+            print_error("game not over" if not self.game.game_over() else "draw")
+            return False
+        print(winner)
+        return True
+
+    def cmd_undo(self, args):
+        return self.game.undo()
+
+#============================================================================
+# You need to implement the following methods.
+#============================================================================
+    def cmd_solve(self, args: str) -> bool:
+        # Make sure a game exists
+        if self.game is None:
+            print_error("no game started")
+            return False
+        
+        # Minimax OR is current player, AND is other player
+        root_player = self.game.toplay
+        opponent_player = opponent(root_player)
+
+        # The current player will win
+        winning_move = self.get_winning_move(self.game, root_player=root_player)
+        if winning_move is not None:
+            print(f"{root_player} {winning_move}")
+            return True
+
+        # The opponent player can win
+        print(opponent_player)
+        return True
+
+    def get_winning_move(self, game: HeapGo, root_player):
+        # Return a winning move
+
+        legal_moves = game.legal_moves()
+        for move in legal_moves:
+            game.play(move)
+            is_winning = self.minimax_and(game, root_player)
+            game.undo()
+            if is_winning:
+                return move
+
+        return None
+
+    def minimax_or(self, game: HeapGo, root_player):
+        # Can the current player force a win
+        # Due to the integer komi we never need to worry about a draw.
+        assert game.toplay == root_player
+
+        # Print status
+        # print(f"Or: current board: {self.game.heaps}")
+
+        # Check if game is already over
+        if game.winner() == root_player:
+            # Game is already won
+            return True
+
+        # Get a list of legal moves
+        legal_moves = game.legal_moves()
+
+        # Go through all legal moves
+        for move in legal_moves:
+            game.play(move)
+            is_winning_move = self.minimax_and(game, root_player)
+            game.undo()
+            if is_winning_move:
+                return True
+
+        return False
+
+    def minimax_and(self, game: HeapGo, root_player):
+        # Can the current player force a win against all the opponents moves
+        # Due to the integer komi we never need to worry about a draw.
+        opponent_player = opponent(root_player)
+
+        assert game.toplay == opponent_player
+
+        # Print status
+        # print(f"And: current board: {self.game.heaps}")
+
+        # Check if game is already over
+        if game.winner() == opponent_player:
+            # Game is already won
+            return False
+
+        # Get a list of legal moves
+        legal_moves = game.legal_moves()
+
+        # Go through all legal moves
+        for move in legal_moves:
+            game.play(move)
+            result = self.minimax_or(game, root_player)
+            is_losing_move = not result
+            game.undo()
+            if is_losing_move:
+                return False
+
+        return True
+
+    def cmd_timelimit(self, args: str) -> bool:
+        """Sets the timelimit as long as the input is valid."""
+        # Make sure the argument is not empty
+        if len(args) == 0:
+            return False
+        
+        input_timelimit = float(args)
+
+        # Make sure timelimit is an integer
+        if input_timelimit % 1 != 0:
+            print_error("Invalid timelimit.")
+            return False
+
+        input_timelimit = int(input_timelimit)
+
+        # Make sure timelimit is valid
+        if input_timelimit < MIN_TIMELIMIT or input_timelimit > MAX_TIMELIMIT:
+            print_error("Invalid timelimit.")
+            return False
+
+        self.timelimit = input_timelimit
+
+        return True
+
+#============================================================================
+# End of functions requiring implementation
+#============================================================================
+
+#============================================================================
+# The code below should not need modification
+# Anyway, you may change or add to this code as you see fit
+#============================================================================
+    def cmd_help(self, ignore_args: str) -> bool:
+        print("\nKnown commands:")
+        for cmd in self.commands:
+            print(cmd)
+        return True
+
+    def process_command(self, cmd_name: str, cmd_args: str) -> None:
+        status = "= -1"
+        cmd = self.commands.get(cmd_name)
+        if cmd:
+            try:
+                if cmd(cmd_args):
+                    status = "= 1"
+            except Exception as e:
+                print_error(f"Command {cmd_name} with arguments {cmd_args} failed with exception: {e}")
+        else:
+            print_error("Unknown command. Type 'help' for commands.")
+        print(status)
+
+    def main_loop(self) -> None:
+        process_commands = True
+        while process_commands:
+            try:
+                line = input()
+            except EOFError:
+                break
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(maxsplit=1)
+            cmd_name = parts[0]
+            if cmd_name == "exit":
+                process_commands = False
+                continue
+            cmd_args = parts[1] if len(parts) > 1 else ""
+            self.process_command(cmd_name, cmd_args)
+
+
+if __name__ == "__main__":
+    interface = CommandInterface()
+    interface.main_loop()
