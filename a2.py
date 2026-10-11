@@ -23,7 +23,7 @@ KOMI_LIMIT = 100  # -100 < komi < 100, and komi must be an integer + 0.5
 
 # The time limit, in seconds, for a single solve or genmove command
 MIN_TIMELIMIT = 1
-MAX_TIMELIMIT = 100
+MAX_TIMELIMIT = 1000000000 # CHANGED FOR TESTING - RESET TO 100 LATER
 DEFAULT_TIMELIMIT = 1
 
 BLACK = 'b'
@@ -214,11 +214,22 @@ class CommandInterface:
             "winner": self.cmd_winner,
             "solve": self.cmd_solve,
             "timelimit": self.cmd_timelimit,
-            "undo": self.cmd_undo # For testing
+            "undo": self.cmd_undo, # For testing
+            "feedback": self.cmd_enable_feedback,
             }
 
         self.start_time = -1# Keep track of the start time for the timelimit clock
         self.deadline = -1
+        self.out_of_time = False
+        self.out_of_time_printed = False
+
+        self.node_count = 0 # keep track of the number of nodes visited
+        self.max_depth = 0
+        self.second_counter = 0
+
+        self.initial_history_count = 0
+
+        self.feedback = False
 
 #============================================================================
 # Command implementations
@@ -337,8 +348,13 @@ class CommandInterface:
 
         # Make sure a game exists
         if self.game is None:
-            print_error("no game started")
+            if self.feedback:
+                print_error("no game started")
             return False
+
+        self.node_count = 0
+        self.initial_history_count = len(self.game.history)
+        self.second_counter = 0
         
         # Minimax OR is current player, AND is other player
         root_player = self.game.toplay
@@ -350,17 +366,29 @@ class CommandInterface:
         
         # The current player will win
         if winning_move is not None:
+            if self.feedback:
+                print_error("\nSolution found!")
+                print_error("Root player will win.")
             print(f"{root_player} {winning_move}")
+            if self.feedback:
+                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
             return True
 
         # The opponent player can win
+        if self.feedback:
+            print_error("\nSolution found!")
+            print_error("Opponent player will win.")
         print(opponent_player)
+        if self.feedback:
+            print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
         return True
 
     def get_winning_move(self, game: HeapGo, root_player):
         # Return a winning move
-        if not self.check_time():
-            print_error("OUT OF TIME.")
+        if not self.check_time() or self.out_of_time:
+            if self.feedback and not self.out_of_time_printed:
+                print_error("OUT OF TIME.")
+                self.out_of_time_printed = True
             return False
 
         legal_moves = game.legal_moves()
@@ -368,9 +396,14 @@ class CommandInterface:
             game.play(move)
             is_winning = self.minimax_and(game, root_player)
             game.undo()
-            if not self.check_time():
-                print_error("OUT OF TIME.")
+            if not self.check_time() or self.out_of_time:
+                if self.feedback and not self.out_of_time_printed:
+                    print_error("OUT OF TIME.")
+                    self.out_of_time_printed = True
                 return False
+            # Print status after each root level node
+            if self.feedback:
+                print_error(f"\nStatus: Move {move} of {len(legal_moves)}. Result: {"success" if is_winning else "not successful"}. Nodes explored: {self.node_count}. Elapsed time: {self.get_elapsed_time():.2f}.\n")
             if is_winning:
                 return move
 
@@ -380,9 +413,18 @@ class CommandInterface:
         # Can the current player force a win
         # Due to the integer komi we never need to worry about a draw.
         assert game.toplay == root_player
+        self.node_count += 1
+        if (len(self.game.history) - self.initial_history_count) > self.max_depth:
+            self.max_depth = len(self.game.history) - self.initial_history_count
+        if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
+            self.second_counter += 1
+            if self.feedback:
+                print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
 
-        if not self.check_time():
-            print_error("OUT OF TIME.")
+        if not self.check_time() or self.out_of_time:
+            if self.feedback and not self.out_of_time_printed:   
+                print_error("OUT OF TIME.")
+                self.out_of_time_printed = True
             return False
 
         # Print status
@@ -401,8 +443,10 @@ class CommandInterface:
             game.play(move)
             is_winning_move = self.minimax_and(game, root_player)
             game.undo()
-            if not self.check_time():
-                print_error("OUT OF TIME.")
+            if not self.check_time() or self.out_of_time:
+                if self.feedback and not self.out_of_time_printed:   
+                    print_error("OUT OF TIME.")
+                    self.out_of_time_printed = True
                 return False
             if is_winning_move:
                 return True
@@ -415,9 +459,18 @@ class CommandInterface:
         opponent_player = opponent(root_player)
 
         assert game.toplay == opponent_player
-
-        if not self.check_time():
-            print_error("OUT OF TIME.")
+        self.node_count += 1
+        if (len(self.game.history) - self.initial_history_count) > self.max_depth:
+            self.max_depth = len(self.game.history) - self.initial_history_count
+        if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
+            self.second_counter += 1
+            if self.feedback:
+                print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+        
+        if not self.check_time() or self.out_of_time:
+            if self.feedback and not self.out_of_time_printed:
+                print_error("OUT OF TIME.")
+                self.out_of_time_printed = True
             return False
 
         # Print status
@@ -452,14 +505,16 @@ class CommandInterface:
 
         # Make sure timelimit is an integer
         if input_timelimit % 1 != 0:
-            print_error("Invalid timelimit.")
+            if self.feedback:
+                print_error("Invalid timelimit.")
             return False
 
         input_timelimit = int(input_timelimit)
 
         # Make sure timelimit is valid
         if input_timelimit < MIN_TIMELIMIT or input_timelimit > MAX_TIMELIMIT:
-            print_error("Invalid timelimit.")
+            if self.feedback:
+                print_error("Invalid timelimit.")
             return False
 
         self.timelimit = input_timelimit
@@ -471,16 +526,33 @@ class CommandInterface:
         # If the clock was never started
         if self.start_time == -1 or self.deadline == -1:
             return False 
+        # If we have already determined to be out of time
+        if self.out_of_time:
+            return False
         
         current_time = time.perf_counter()
         elapsed_time = current_time - self.start_time
         if current_time > self.deadline:
+            self.out_of_time = True
             return False
         return True
 
     def start_clock(self):
         self.start_time = time.perf_counter()
         self.deadline = self.start_time + self.timelimit
+        self.out_of_time = False
+        self.out_of_time_printed = False
+        return True
+
+    def get_elapsed_time(self):
+        current_time = time.perf_counter()
+        elapsed_time = current_time - self.start_time
+        return elapsed_time
+
+    def cmd_enable_feedback(self, args):
+        print_error("Feedback enabled.")
+        self.feedback = True
+        return True
 
 #============================================================================
 # End of functions requiring implementation
