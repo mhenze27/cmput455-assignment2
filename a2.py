@@ -6,6 +6,7 @@
 import ast
 import random
 import copy
+import time
 from sys import stderr
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -216,6 +217,9 @@ class CommandInterface:
             "undo": self.cmd_undo # For testing
             }
 
+        self.start_time = -1# Keep track of the start time for the timelimit clock
+        self.deadline = -1
+
 #============================================================================
 # Command implementations
 #============================================================================
@@ -281,14 +285,26 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-        moves = self.game.legal_moves()
-        if not moves:
+        legal_moves = self.game.legal_moves()
+        if not legal_moves:
             print_error("no legal moves")
             return False
-        # you need to replace this random move by a move from your solver
-        move = random.choice(moves)
-        self.game.play(move)
-        print(move)
+        # Try to play a winning move if one exists and can be found in time
+        self.start_clock()
+        winning_move = self.get_winning_move(self.game, self.game.toplay)
+
+        # Check if we found a winning move
+        if not self.check_time() or winning_move is None or winning_move is False:
+            # Play a random move
+            move = random.choice(legal_moves)
+            self.game.play(move)
+            print(move)
+            return True
+
+        # If we found a winning move play it
+        self.game.play(winning_move)
+        print(winning_move)
+
         return True
 
     def cmd_score(self, args: str) -> bool:
@@ -316,6 +332,9 @@ class CommandInterface:
 # You need to implement the following methods.
 #============================================================================
     def cmd_solve(self, args: str) -> bool:
+        # Start the timer
+        self.start_clock()
+
         # Make sure a game exists
         if self.game is None:
             print_error("no game started")
@@ -325,8 +344,11 @@ class CommandInterface:
         root_player = self.game.toplay
         opponent_player = opponent(root_player)
 
-        # The current player will win
         winning_move = self.get_winning_move(self.game, root_player=root_player)
+        if not self.check_time():
+            return False
+        
+        # The current player will win
         if winning_move is not None:
             print(f"{root_player} {winning_move}")
             return True
@@ -337,12 +359,18 @@ class CommandInterface:
 
     def get_winning_move(self, game: HeapGo, root_player):
         # Return a winning move
+        if not self.check_time():
+            print_error("OUT OF TIME.")
+            return False
 
         legal_moves = game.legal_moves()
         for move in legal_moves:
             game.play(move)
             is_winning = self.minimax_and(game, root_player)
             game.undo()
+            if not self.check_time():
+                print_error("OUT OF TIME.")
+                return False
             if is_winning:
                 return move
 
@@ -352,6 +380,10 @@ class CommandInterface:
         # Can the current player force a win
         # Due to the integer komi we never need to worry about a draw.
         assert game.toplay == root_player
+
+        if not self.check_time():
+            print_error("OUT OF TIME.")
+            return False
 
         # Print status
         # print(f"Or: current board: {self.game.heaps}")
@@ -369,6 +401,9 @@ class CommandInterface:
             game.play(move)
             is_winning_move = self.minimax_and(game, root_player)
             game.undo()
+            if not self.check_time():
+                print_error("OUT OF TIME.")
+                return False
             if is_winning_move:
                 return True
 
@@ -380,6 +415,10 @@ class CommandInterface:
         opponent_player = opponent(root_player)
 
         assert game.toplay == opponent_player
+
+        if not self.check_time():
+            print_error("OUT OF TIME.")
+            return False
 
         # Print status
         # print(f"And: current board: {self.game.heaps}")
@@ -426,6 +465,22 @@ class CommandInterface:
         self.timelimit = input_timelimit
 
         return True
+
+    def check_time(self):
+        """Check if we are over the timelimit."""
+        # If the clock was never started
+        if self.start_time == -1 or self.deadline == -1:
+            return False 
+        
+        current_time = time.perf_counter()
+        elapsed_time = current_time - self.start_time
+        if current_time > self.deadline:
+            return False
+        return True
+
+    def start_clock(self):
+        self.start_time = time.perf_counter()
+        self.deadline = self.start_time + self.timelimit
 
 #============================================================================
 # End of functions requiring implementation
