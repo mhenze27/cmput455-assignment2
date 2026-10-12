@@ -23,7 +23,7 @@ KOMI_LIMIT = 100  # -100 < komi < 100, and komi must be an integer + 0.5
 
 # The time limit, in seconds, for a single solve or genmove command
 MIN_TIMELIMIT = 1
-MAX_TIMELIMIT = 1000000000 # CHANGED FOR TESTING - RESET TO 100 LATER
+MAX_TIMELIMIT = 100
 DEFAULT_TIMELIMIT = 1
 
 BLACK = 'b'
@@ -140,9 +140,9 @@ class HeapGo:
         # print(f"history: {self.history}")
 
         # Save the current board state
-        current_board = copy.deepcopy(self.heaps)
-        current_score = copy.deepcopy(self.score)
-        current_player = copy.deepcopy(self.toplay)
+        current_board = [heap.copy() for heap in self.heaps]
+        current_score = self.score.copy()
+        current_player = self.toplay
         stored_state = (current_board, current_score, current_player)
         self.history.append(stored_state)
 
