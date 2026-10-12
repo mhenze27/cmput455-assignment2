@@ -302,7 +302,7 @@ class CommandInterface:
             return False
         # Try to play a winning move if one exists and can be found in time
         self.start_clock()
-        winning_move = self.get_winning_move(self.game, self.game.toplay)
+        winning_move = self.get_winning_move(self.game)
 
         # Check if we found a winning move
         if not self.check_time() or winning_move is None or winning_move is False:
@@ -357,10 +357,10 @@ class CommandInterface:
         self.second_counter = 0
         
         # Minimax OR is current player, AND is other player
-        root_player = self.game.toplay
-        opponent_player = opponent(root_player)
+        #root_player = self.game.toplay
+        opponent_player = opponent(self.game.toplay)
 
-        winning_move = self.get_winning_move(self.game, root_player=root_player)
+        winning_move = self.get_winning_move(self.game)
         if not self.check_time():
             return False
         
@@ -369,7 +369,7 @@ class CommandInterface:
             if self.feedback:
                 print_error("\nSolution found!")
                 print_error("Root player will win.")
-            print(f"{root_player} {winning_move}")
+            print(f"{self.game.toplay} {winning_move}")
             if self.feedback:
                 print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
             return True
@@ -383,7 +383,7 @@ class CommandInterface:
             print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
         return True
 
-    def get_winning_move(self, game: HeapGo, root_player):
+    def get_winning_move(self, game: HeapGo):
         # Return a winning move
         if not self.check_time() or self.out_of_time:
             if self.feedback and not self.out_of_time_printed:
@@ -394,7 +394,7 @@ class CommandInterface:
         legal_moves = game.legal_moves()
         for move in legal_moves:
             game.play(move)
-            is_winning = self.minimax_and(game, root_player)
+            is_winning = not self.negamax(game)
             game.undo()
             if not self.check_time() or self.out_of_time:
                 if self.feedback and not self.out_of_time_printed:
@@ -403,16 +403,13 @@ class CommandInterface:
                 return False
             # Print status after each root level node
             if self.feedback:
-                print_error(f"\nStatus: Move {move} of {len(legal_moves)}. Result: {"success" if is_winning else "not successful"}. Nodes explored: {self.node_count}. Elapsed time: {self.get_elapsed_time():.2f}.\n")
+                print_error(f"\nStatus: Move {move} of {len(legal_moves)}. Result: {'success' if is_winning else 'not successful'}. Nodes explored: {self.node_count}. Elapsed time: {self.get_elapsed_time():.2f}.\n")
             if is_winning:
                 return move
 
         return None
 
-    def minimax_or(self, game: HeapGo, root_player):
-        # Can the current player force a win
-        # Due to the integer komi we never need to worry about a draw.
-        assert game.toplay == root_player
+    def negamax(self, game: HeapGo):
         self.node_count += 1
         if (len(self.game.history) - self.initial_history_count) > self.max_depth:
             self.max_depth = len(self.game.history) - self.initial_history_count
@@ -427,13 +424,15 @@ class CommandInterface:
                 self.out_of_time_printed = True
             return False
 
-        # Print status
-        # print(f"Or: current board: {self.game.heaps}")
-
+        # Who is the player
+        # toplay is the player
         # Check if game is already over
-        if game.winner() == root_player:
+        if game.winner() == game.toplay:
             # Game is already won
             return True
+        if game.winner() == opponent:
+            # Game is won by opponent
+            return False
 
         # Get a list of legal moves
         legal_moves = game.legal_moves()
@@ -441,7 +440,7 @@ class CommandInterface:
         # Go through all legal moves
         for move in legal_moves:
             game.play(move)
-            is_winning_move = self.minimax_and(game, root_player)
+            is_winning_move = not self.negamax(game)
             game.undo()
             if not self.check_time() or self.out_of_time:
                 if self.feedback and not self.out_of_time_printed:   
@@ -452,48 +451,6 @@ class CommandInterface:
                 return True
 
         return False
-
-    def minimax_and(self, game: HeapGo, root_player):
-        # Can the current player force a win against all the opponents moves
-        # Due to the integer komi we never need to worry about a draw.
-        opponent_player = opponent(root_player)
-
-        assert game.toplay == opponent_player
-        self.node_count += 1
-        if (len(self.game.history) - self.initial_history_count) > self.max_depth:
-            self.max_depth = len(self.game.history) - self.initial_history_count
-        if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
-            self.second_counter += 1
-            if self.feedback:
-                print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
-        
-        if not self.check_time() or self.out_of_time:
-            if self.feedback and not self.out_of_time_printed:
-                print_error("OUT OF TIME.")
-                self.out_of_time_printed = True
-            return False
-
-        # Print status
-        # print(f"And: current board: {self.game.heaps}")
-
-        # Check if game is already over
-        if game.winner() == opponent_player:
-            # Game is already won
-            return False
-
-        # Get a list of legal moves
-        legal_moves = game.legal_moves()
-
-        # Go through all legal moves
-        for move in legal_moves:
-            game.play(move)
-            result = self.minimax_or(game, root_player)
-            is_losing_move = not result
-            game.undo()
-            if is_losing_move:
-                return False
-
-        return True
 
     def cmd_timelimit(self, args: str) -> bool:
         """Sets the timelimit as long as the input is valid."""
