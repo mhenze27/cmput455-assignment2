@@ -126,11 +126,18 @@ class HeapGo:
     def is_legal(self, heap_number: int) -> bool:
         return 0 <= heap_number < len(self.heaps) and len(self.heaps[heap_number]) > 0
 
-    def legal_moves(self) -> List[int]:
-        return [i for i in range(len(self.heaps)) if self.is_legal(i)]
+    # Like is_legal but assuming the heap number is already in range
+    def is_valid(self, heap_number: int) -> bool:
+        return len(self.heaps[heap_number]) > 0
 
-    def game_over(self) -> bool:
-        return len(self.legal_moves()) == 0
+    def legal_moves(self) -> List[int]:
+        legal_moves = [i for i in range(len(self.heaps)) if len(self.heaps[i]) > 0]
+        return legal_moves
+
+    def game_over(self, legal_moves=None) -> bool:
+        if legal_moves is None:
+            return len(self.legal_moves()) == 0
+        return len(legal_moves) == 0
 
     def play(self, heap_number: int) -> bool:
         # Check if move is legal
@@ -162,9 +169,13 @@ class HeapGo:
 
         return True
 
-    def winner(self) -> Optional[str]:
-        if not self.game_over():
-            return None
+    def winner(self, legal_moves=None) -> Optional[str]:
+        if legal_moves is None:
+            if not self.game_over():
+                return None
+        else:
+            if not self.game_over(legal_moves):
+                return None
         if self.score[BLACK] > self.score[WHITE]:
             return BLACK
         if self.score[WHITE] > self.score[BLACK]:
@@ -411,12 +422,13 @@ class CommandInterface:
 
     def negamax(self, game: HeapGo):
         self.node_count += 1
-        if (len(self.game.history) - self.initial_history_count) > self.max_depth:
-            self.max_depth = len(self.game.history) - self.initial_history_count
-        if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
-            self.second_counter += 1
-            if self.feedback:
-                print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+        if self.feedback:
+            if (len(self.game.history) - self.initial_history_count) > self.max_depth:
+                self.max_depth = len(self.game.history) - self.initial_history_count
+            if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
+                self.second_counter += 1
+                if self.feedback:
+                    print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
 
         if not self.check_time() or self.out_of_time:
             if self.feedback and not self.out_of_time_printed:   
@@ -424,18 +436,20 @@ class CommandInterface:
                 self.out_of_time_printed = True
             return False
 
-        # Who is the player
-        # toplay is the player
-        # Check if game is already over
-        if game.winner() == game.toplay:
-            # Game is already won
-            return True
-        if game.winner() == opponent:
-            # Game is won by opponent
-            return False
-
         # Get a list of legal moves
         legal_moves = game.legal_moves()
+
+        # We only need to check this on terminal nodes
+        if len(legal_moves) == 0:
+            # Who is the player
+            # toplay is the player
+            # Check if game is already over
+            if game.winner(legal_moves) == game.toplay:
+                # Game is already won
+                return True
+            else:
+                # Game is won by opponent
+                return False
 
         # Go through all legal moves
         for move in legal_moves:
@@ -488,7 +502,6 @@ class CommandInterface:
             return False
         
         current_time = time.perf_counter()
-        elapsed_time = current_time - self.start_time
         if current_time > self.deadline:
             self.out_of_time = True
             return False
