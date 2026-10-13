@@ -61,6 +61,7 @@ b 0
 # V1: time: 0.0003, Nodes: 1
 # V3: time: 0.0002, Nodes: 1
 # V4: time: 0.0003, Nodes: 1
+# V5: time: 0.0003, Nodes: 1
 
 # solve must not change the game
 ?show
@@ -81,6 +82,7 @@ w 0
 # V1: Time: 0.0001, Nodes: 1
 # V3: Time: 0.0003, Nodes: 1
 # V4: Time: 0.0002, Nodes: 1
+# V5: Time: 0.0004, Nodes: 1
 
 #======================================================================
 # Black takes ('b', 2) by rule 1 and ('w', 2) by rule 2
@@ -93,6 +95,7 @@ b 0
 # V1: Time: 0.0002, Nodes: 1
 # V3: Time: 0.0002, Nodes: 1
 # V4: Time: 0.0002, Nodes: 1
+# V5: Time: 0.0003, Nodes: 1
 
 # genmove plays a legal move; it need not be the winning one
 ?genmove
@@ -115,6 +118,7 @@ w
 # V1: Time: 0.0003, Nodes: 2
 # V3: Time: 0.0002, Nodes: 2
 # V4: Time: 0.0003, Nodes: 2
+# V5: Time: 0.0002, Nodes: 2
 
 ?heapgo -2.5 [[('b', 3), ('w', 1)]]
 = 1
@@ -125,6 +129,7 @@ b 0
 # V1: Time: 0.0003, Nodes: 2
 # V3: Time: 0.0001, Nodes: 2
 # V4: Time: 0.0002, Nodes: 2
+# V5: Time: 0.0002, Nodes: 2
 
 #======================================================================
 # Every move loses, so no move is printed
@@ -174,6 +179,7 @@ b 1
 # V1: Time: 0.0005, Nodes: 10
 # V3: Time: 0.0004, Nodes: 10
 # V4: Time: 0.0003, Nodes: 10
+# V5: Time: 0.0005, Nodes: 10
 
 ?toplay w
 = 1
@@ -185,6 +191,7 @@ b 1
 # V1: Time: 0.0002, Nodes: 6
 # V3: Time: 0.0002, Nodes: 6
 # V4: Time: 0.0003, Nodes: 6
+# V5: Time: 0.0003, Nodes: 6
 
 #======================================================================
 # Solving in the middle of a game
@@ -232,6 +239,7 @@ b 0
 # V1: Time: 0.0381, Nodes: 4963
 # V3: Time: 0.0111, Nodes: 4963
 # V4: Time: 0.0098, Nodes: 4963
+# V5: Time: 0.0044, Nodes: 664
 
 ?heapgo 15.5 [[('w', 18), ('w', 3), ('w', 15), ('w', 14)], [('w', 10), ('w', 7), ('w', 5), ('b', 8)], [('b', 13), ('w', 20), ('b', 14), ('b', 4)], [('b', 3), ('w', 3), ('b', 14), ('b', 2)]]
 = 1
@@ -242,6 +250,7 @@ w
 # V1: Time: 0.0021, Nodes: 167
 # V3: Time: 0.0007, Nodes: 167
 # V4: Time: 0.0008, Nodes: 167
+# V5: Time: 0.0010, Nodes: 101
 
 #======================================================================
 # With perfect play, Black's score minus White's is 16, so a komi
@@ -280,6 +289,7 @@ w
 # V1: Time: 79.4509, Nodes: 9314983
 # V3: Time: 23.8676, Nodes: 9314983
 # V4: Time: 16.5231, Nodes: 9314983
+# V5: Time: 0.5484, Nodes: 38960
 
 ?heapgo -8.5 [[('w', 17), ('w', 9), ('w', 7), ('b', 11), ('b', 1)], [('b', 11), ('b', 13), ('w', 2), ('b', 11), ('w', 20)], [('w', 12), ('b', 16), ('b', 7), ('w', 18), ('b', 12)], [('w', 11), ('w', 6), ('b', 20), ('b', 5), ('w', 16)], [('b', 20), ('w', 15), ('w', 6), ('w', 9), ('w', 20)]]
 = 1
@@ -290,6 +300,7 @@ w
 # V1: Time: 151.9272, Nodes: 18127773
 # V3: Time: 47.6468, Nodes: 18127773
 # V4: Time: 30.9164, Nodes: 18127773
+# V5: Time: 0.7265, Nodes: 47554
 
 #======================================================================
 # With perfect play, Black's score minus White's is 10, so a komi
@@ -303,6 +314,7 @@ b 4
 # V1: Time: 121.0636, Nodes: 14827741
 # V3: Time: 39.0823, Nodes: 14827741
 # V4: Time: 25.3530, Nodes: 14827741
+# V5: TIme: 0.4680, Nodes: 33775
 
 ?heapgo 10.5 [[('w', 12), ('b', 11), ('w', 17), ('w', 6), ('w', 12)], [('w', 15), ('b', 12), ('w', 1), ('w', 7), ('b', 15)], [('b', 15), ('b', 7), ('w', 12), ('w', 4), ('b', 4)], [('b', 19), ('b', 5), ('w', 9), ('b', 19), ('b', 7)], [('b', 11), ('w', 15), ('b', 14), ('w', 3), ('w', 18)]]
 = 1
@@ -313,6 +325,7 @@ w
 # V1: Time: 44.8952, Nodes: 6620309
 # V3: Time: 17.1644, Nodes: 6620309
 # V4: Time: 12.1348, Nodes: 6620309
+# V5: Time: 0.3767, Nodes: 29651
 
 #======================================================================
 # With perfect play, Black's score minus White's is 90, so a komi
@@ -326,6 +339,7 @@ b 2
 # V1: Time: 5.5724, Nodes: 686218
 # V3: Time: 1.7751, Nodes: 686218
 # V4: Time: 1.6697, Nodes: 686218
+# V5: Time: 0.0808, Nodes: 7882
 
 ?heapgo 90.5 [[('w', 6), ('w', 6), ('w', 2), ('w', 17), ('b', 8)], [('w', 7), ('b', 11), ('b', 8), ('b', 2), ('b', 3)], [('b', 7), ('b', 19), ('b', 15), ('b', 8), ('b', 17)], [('b', 1), ('b', 2), ('b', 18), ('w', 18), ('b', 9)], [('w', 20), ('w', 18), ('b', 7), ('b', 7), ('w', 12)]]
 = 1
@@ -336,6 +350,7 @@ w
 # V1: Time: 6.0866, Nodes: 736732
 # V3: Time: 1.9006, Nodes: 736732
 # V4: Time: 1.7979, Nodes: 736732
+# V5: Time: 0.0879, Nodes: 8561
 
 #======================================================================
 # HARD
@@ -357,6 +372,7 @@ w
 # V1: DID NOT SOLVE. Time: >240, Nodes >26381000
 # V3: DID NOT SOLVE. Time: >100, Nodes >35489000
 # V4: DID NOT SOLVE. Time: >100, Nodes >58043000
+# V5: Time: 11.0002, Nodes: 668266
 
 ?heapgo 1.5 [[('w', 12), ('w', 5), ('b', 13), ('w', 15), ('w', 2), ('b', 18)], [('b', 13), ('w', 11), ('b', 6), ('b', 4), ('b', 5), ('b', 13)], [('b', 15), ('b', 14), ('w', 18), ('w', 3), ('w', 4), ('b', 13)], [('b', 19), ('b', 15), ('b', 4), ('w', 12), ('w', 19), ('b', 1)], [('b', 7), ('b', 18), ('w', 19), ('w', 11), ('b', 20), ('w', 5)], [('b', 4), ('b', 9), ('w', 19), ('b', 15), ('b', 4), ('w', 18)]]
 = 1
@@ -367,6 +383,7 @@ w
 # V1: DID NOT SOLVE. Time: >100, Nodes >10874000
 # V3: DID NOT SOLVE. Time: >100, Nodes >35277000
 # V4: DID NOT SOLVE. Time: >100, Nodes >57458000
+# V5: Time: 26.0120, Nodes: 1504666
 
 #======================================================================
 # With perfect play, Black's score minus White's is -31, so a komi
@@ -380,6 +397,7 @@ b 0
 # V1: DID NOT SOLVE. Time: >100, Nodes: >11329000
 # V3: DID NOT SOLVE. Time: >100, Nodes: >34290000
 # V4: DID NOT SOLVE. Time: >100, Nodes: >56457000
+# V5: Time: 10.4350, Nodes: 700819
 
 ?heapgo -30.5 [[('b', 19), ('b', 4), ('w', 13), ('w', 1), ('b', 12), ('w', 20)], [('w', 7), ('b', 16), ('w', 18), ('w', 13), ('b', 8), ('w', 2)], [('w', 8), ('b', 2), ('b', 13), ('w', 17), ('b', 20), ('w', 16)], [('b', 3), ('b', 4), ('w', 20), ('w', 15), ('b', 20), ('b', 2)], [('w', 8), ('w', 2), ('w', 3), ('b', 11), ('b', 9), ('b', 7)], [('w', 10), ('w', 12), ('b', 9), ('w', 16), ('w', 16), ('w', 1)]]
 = 1
@@ -390,6 +408,7 @@ w
 # V1: DID NOT SOLVE. Time: >100, Nodes: >11172000
 # V3: DID NOT SOLVE. Time: >100, Nodes: >34330000
 # V4: DID NOT SOLVE. Time: >100, Nodes: >58148000
+# V5: Time: 12.3642, Nodes: 835418
 
 #======================================================================
 # HARDER
@@ -427,3 +446,4 @@ w
 # V2 - basic negamax
 # V3 - negamax with more efficient undo
 # V4 - negamax with more efficent legal_moves calculation
+# V5 - negamax with basic transposition table

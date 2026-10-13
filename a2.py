@@ -204,6 +204,12 @@ class HeapGo:
 
         return True
 
+    def get_state_code(self):
+        # Calculates the code for the state for the transposition table
+        # 3 important things: heaps, toplay, score
+        code = f"{self.heaps}{self.toplay}{self.score}"
+        #print(code)
+        return code
 
 CommandMap = Dict[str, Callable[[str], bool]]
 
@@ -241,6 +247,8 @@ class CommandInterface:
         self.initial_history_count = 0
 
         self.feedback = False
+
+        self.transposition_table = {}
 
 #============================================================================
 # Command implementations
@@ -363,6 +371,9 @@ class CommandInterface:
                 print_error("no game started")
             return False
 
+        # Reset the transposition table to empty
+        self.reset_transposition_table()
+
         self.node_count = 0
         self.initial_history_count = len(self.game.history)
         self.second_counter = 0
@@ -382,7 +393,7 @@ class CommandInterface:
                 print_error("Root player will win.")
             print(f"{self.game.toplay} {winning_move}")
             if self.feedback:
-                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
             return True
 
         # The opponent player can win
@@ -391,7 +402,7 @@ class CommandInterface:
             print_error("Opponent player will win.")
         print(opponent_player)
         if self.feedback:
-            print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+            print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
         return True
 
     def get_winning_move(self, game: HeapGo):
@@ -414,7 +425,7 @@ class CommandInterface:
                 return False
             # Print status after each root level node
             if self.feedback:
-                print_error(f"\nStatus: Move {move} of {len(legal_moves)}. Result: {'success' if is_winning else 'not successful'}. Nodes explored: {self.node_count}. Elapsed time: {self.get_elapsed_time():.2f}.\n")
+                print_error(f"\nStatus: Move {move} of {len(legal_moves)}. Result: {'success' if is_winning else 'not successful'}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Elapsed time: {self.get_elapsed_time():.2f}.\n")
             if is_winning:
                 return move
 
@@ -428,7 +439,7 @@ class CommandInterface:
             if self.node_count % 1000 == 0 and int(self.get_elapsed_time()) >= self.second_counter:
                 self.second_counter += 1
                 if self.feedback:
-                    print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+                    print_error(f"Status: Elapsed time: {int(self.get_elapsed_time())}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
 
         if not self.check_time() or self.out_of_time:
             if self.feedback and not self.out_of_time_printed:   
@@ -454,7 +465,17 @@ class CommandInterface:
         # Go through all legal moves
         for move in legal_moves:
             game.play(move)
-            is_winning_move = not self.negamax(game)
+
+            # Check if the result is in the transposition table
+            state_code = game.get_state_code()
+            result = self.transposition_table.get(state_code)
+            if result is None:
+                is_winning_move = not self.negamax(game)
+                self.transposition_table[state_code] = is_winning_move
+            else:
+                is_winning_move = result
+
+            #is_winning_move = not self.negamax(game)
             game.undo()
             if not self.check_time() or self.out_of_time:
                 if self.feedback and not self.out_of_time_printed:   
@@ -522,6 +543,10 @@ class CommandInterface:
     def cmd_enable_feedback(self, args):
         print_error("Feedback enabled.")
         self.feedback = True
+        return True
+
+    def reset_transposition_table(self):
+        self.transposition_table = {}
         return True
 
 #============================================================================
