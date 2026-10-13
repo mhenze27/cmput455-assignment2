@@ -4,11 +4,12 @@
 # Full assignment specification and game rules on Canvas
 
 import ast
+import sys
 import random
-import copy
 import time
 from sys import stderr
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
 
 # ---------------------------------------------------------------------------
 # Assignment restrictions (see assignment page)
@@ -25,6 +26,9 @@ KOMI_LIMIT = 100  # -100 < komi < 100, and komi must be an integer + 0.5
 MIN_TIMELIMIT = 1
 MAX_TIMELIMIT = 100
 DEFAULT_TIMELIMIT = 1
+
+# Sets a cap for items in the tt
+MAX_TT_SIZE = 1E9
 
 BLACK = 'b'
 WHITE = 'w'
@@ -127,8 +131,8 @@ class HeapGo:
         return 0 <= heap_number < len(self.heaps) and len(self.heaps[heap_number]) > 0
 
     # Like is_legal but assuming the heap number is already in range
-    def is_valid(self, heap_number: int) -> bool:
-        return len(self.heaps[heap_number]) > 0
+    # def is_valid(self, heap_number: int) -> bool:
+    #     return len(self.heaps[heap_number]) > 0
 
     def legal_moves(self) -> List[int]:
         legal_moves = [i for i in range(len(self.heaps)) if len(self.heaps[i]) > 0]
@@ -206,10 +210,14 @@ class HeapGo:
 
     def get_state_code(self):
         # Calculates the code for the state for the transposition table
-        # 3 important things: heaps, toplay, score
-        code = f"{self.heaps}{self.toplay}{self.score}"
-        #print(code)
+        # 3 important things score, player, heaps
+        # tuple of tokens left per heap
+        if self.toplay == BLACK:
+            code = f"{self.score[BLACK]-self.score[WHITE]}, {tuple(len(x) for x in self.heaps)}"
+        else:
+            code = f"{self.score[WHITE]-self.score[BLACK]}, {tuple(-len(x) for x in self.heaps)}"
         return code
+
 
 CommandMap = Dict[str, Callable[[str], bool]]
 
@@ -315,6 +323,10 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
+        
+        # Reset the TT
+        self.reset_transposition_table()
+
         legal_moves = self.game.legal_moves()
         if not legal_moves:
             print_error("no legal moves")
@@ -375,6 +387,7 @@ class CommandInterface:
         self.reset_transposition_table()
 
         self.node_count = 0
+        self.max_depth = 0
         self.initial_history_count = len(self.game.history)
         self.second_counter = 0
         
@@ -384,6 +397,8 @@ class CommandInterface:
 
         winning_move = self.get_winning_move(self.game)
         if not self.check_time():
+            if self.feedback:
+                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. TT Memory: {self.get_tt_memory():f}MB. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
             return False
         
         # The current player will win
@@ -393,7 +408,7 @@ class CommandInterface:
                 print_error("Root player will win.")
             print(f"{self.game.toplay} {winning_move}")
             if self.feedback:
-                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+                print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. TT Memory: {self.get_tt_memory():f}MB. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
             return True
 
         # The opponent player can win
@@ -402,7 +417,7 @@ class CommandInterface:
             print_error("Opponent player will win.")
         print(opponent_player)
         if self.feedback:
-            print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
+            print_error(f"Status: Elapsed time: {self.get_elapsed_time():.4f}. Nodes explored: {self.node_count}. TT Size: {len(self.transposition_table.keys())}. TT Memory: {self.get_tt_memory():f}MB. Depth: {len(self.game.history)-self.initial_history_count}. Max depth: {self.max_depth}.")
         return True
 
     def get_winning_move(self, game: HeapGo):
@@ -471,7 +486,10 @@ class CommandInterface:
             result = self.transposition_table.get(state_code)
             if result is None:
                 is_winning_move = not self.negamax(game)
-                self.transposition_table[state_code] = is_winning_move
+                # Only store in the tt if the time has not run out
+                # Only store in the tt if we are below the cap
+                if not self.out_of_time and len(self.transposition_table) < MAX_TT_SIZE:
+                    self.transposition_table[state_code] = is_winning_move
             else:
                 is_winning_move = result
 
@@ -548,6 +566,18 @@ class CommandInterface:
     def reset_transposition_table(self):
         self.transposition_table = {}
         return True
+
+    def get_tt_memory(self):
+        # Get the size of the dictionary
+        dict_size = sys.getsizeof(self.transposition_table)
+        # Get the size of all the items
+        items_size = 0
+        for key, value in self.transposition_table.items():
+            items_size += sys.getsizeof(key)
+        total_size = dict_size + items_size
+        # Convert the size to MB
+        total_size_mb = total_size / 2**20
+        return total_size_mb
 
 #============================================================================
 # End of functions requiring implementation
