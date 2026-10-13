@@ -28,7 +28,7 @@ MAX_TIMELIMIT = 100
 DEFAULT_TIMELIMIT = 1
 
 # Sets a cap for items in the tt
-MAX_TT_SIZE = 1E9
+MAX_TT_SIZE = int(3E6)
 
 BLACK = 'b'
 WHITE = 'w'
@@ -130,10 +130,6 @@ class HeapGo:
     def is_legal(self, heap_number: int) -> bool:
         return 0 <= heap_number < len(self.heaps) and len(self.heaps[heap_number]) > 0
 
-    # Like is_legal but assuming the heap number is already in range
-    # def is_valid(self, heap_number: int) -> bool:
-    #     return len(self.heaps[heap_number]) > 0
-
     def legal_moves(self) -> List[int]:
         legal_moves = [i for i in range(len(self.heaps)) if len(self.heaps[i]) > 0]
         return legal_moves
@@ -148,16 +144,12 @@ class HeapGo:
         if not self.is_legal(heap_number):
             return False
 
-        # print(f"history: {self.history}")
-
         # Save the current board state
         current_board = [heap.copy() for heap in self.heaps]
         current_score = self.score.copy()
         current_player = self.toplay
         stored_state = (current_board, current_score, current_player)
         self.history.append(stored_state)
-
-        # print(f"history: {self.history}")
 
         # Play the move
         heap = self.heaps[heap_number]
@@ -172,6 +164,21 @@ class HeapGo:
         self.toplay = opponent(self.toplay)
 
         return True
+
+    def evaluate_move(self, heap_number):
+        # Evaluate a move without playing it
+        heap = self.heaps[heap_number]
+        score = 0
+        # Rule 1: take all own-color tokens from the top
+        counter = len(heap) - 1
+        while counter >= 0 and heap[counter][0] == self.toplay:
+            score += heap[counter][1]
+            counter -= 1
+        # Rule 2: then one opponent token, if any remain
+        if counter >= 0 and heap[counter][0] == opponent(self.toplay):
+            score += heap[counter][1]
+
+        return score
 
     def winner(self, legal_moves=None) -> Optional[str]:
         if legal_moves is None:
@@ -188,8 +195,6 @@ class HeapGo:
 
     # Need to add undo for the solver algorithm
     def undo(self) -> bool:
-        # print(f"board before undo: {self.heaps}")
-        # print(f"history: {self.history}")
         # Revert the board to the previous state
         # Make sure the previous state is saved
         if len(self.history) == 0:
@@ -203,15 +208,12 @@ class HeapGo:
         self.score = restored_state[1]
         self.toplay = restored_state[2]
 
-        # print(f"board after undo: {self.heaps}")
-        # print(f"history: {self.history}")
-
         return True
 
     def get_state_code(self):
         # Calculates the code for the state for the transposition table
         # 3 important things score, player, heaps
-        # tuple of tokens left per heap
+        # a string with a score from the current players perspective and a tuple of tokens left per heap with it being multiplied by -1 in for the white player
         if self.toplay == BLACK:
             code = f"{self.score[BLACK]-self.score[WHITE]}, {tuple(len(x) for x in self.heaps)}"
         else:
@@ -239,8 +241,7 @@ class CommandInterface:
             "winner": self.cmd_winner,
             "solve": self.cmd_solve,
             "timelimit": self.cmd_timelimit,
-            "undo": self.cmd_undo, # For testing
-            "feedback": self.cmd_enable_feedback,
+            "feedback": self.cmd_enable_feedback
             }
 
         self.start_time = -1# Keep track of the start time for the timelimit clock
@@ -367,8 +368,6 @@ class CommandInterface:
         print(winner)
         return True
 
-    def cmd_undo(self, args):
-        return self.game.undo()
 
 #============================================================================
 # You need to implement the following methods.
@@ -383,6 +382,10 @@ class CommandInterface:
                 print_error("no game started")
             return False
 
+        # Check if the game is already over
+        if self.game.game_over():
+            print(self.game.winner())
+
         # Reset the transposition table to empty
         self.reset_transposition_table()
 
@@ -392,7 +395,6 @@ class CommandInterface:
         self.second_counter = 0
         
         # Minimax OR is current player, AND is other player
-        #root_player = self.game.toplay
         opponent_player = opponent(self.game.toplay)
 
         winning_move = self.get_winning_move(self.game)
@@ -429,6 +431,10 @@ class CommandInterface:
             return False
 
         legal_moves = game.legal_moves()
+
+        # Order moves
+        legal_moves = self.order_moves(game, legal_moves)
+
         for move in legal_moves:
             game.play(move)
             is_winning = not self.negamax(game)
@@ -477,6 +483,9 @@ class CommandInterface:
                 # Game is won by opponent
                 return False
 
+        # Order moves
+        legal_moves = self.order_moves(game, legal_moves)
+
         # Go through all legal moves
         for move in legal_moves:
             game.play(move)
@@ -488,12 +497,13 @@ class CommandInterface:
                 is_winning_move = not self.negamax(game)
                 # Only store in the tt if the time has not run out
                 # Only store in the tt if we are below the cap
-                if not self.out_of_time and len(self.transposition_table) < MAX_TT_SIZE:
+                if len(self.transposition_table) >= MAX_TT_SIZE:
+                    self.reset_transposition_table
+                if not self.out_of_time:
                     self.transposition_table[state_code] = is_winning_move
             else:
                 is_winning_move = result
 
-            #is_winning_move = not self.negamax(game)
             game.undo()
             if not self.check_time() or self.out_of_time:
                 if self.feedback and not self.out_of_time_printed:   
@@ -578,6 +588,21 @@ class CommandInterface:
         # Convert the size to MB
         total_size_mb = total_size / 2**20
         return total_size_mb
+
+    def order_moves(self, game, moves):
+        # Order a list of moves by score
+        scores = []
+
+        for move in moves:
+            score = game.evaluate_move(move)
+            scores.append(score)
+
+        # Now sort moves by score
+        scores_dict = dict(zip(moves, scores))
+        moves = sorted(moves, key=lambda move: scores_dict[move], reverse=True)
+
+        return moves
+
 
 #============================================================================
 # End of functions requiring implementation
